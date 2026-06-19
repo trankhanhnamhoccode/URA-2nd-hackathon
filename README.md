@@ -921,3 +921,327 @@ columns: image_id, ocr_text, product_name
 
 Notebook đã validate các điều kiện này trước khi lưu.
 
+---
+
+## 11. Nối VS Code `.ipynb` với Kaggle kernel bằng “VS Code Compatible URL”
+
+Phần này đúng với trường hợp bạn đang mở file `.ipynb` trong VS Code và góc phải đang hiện kernel local, ví dụ:
+
+```text
+Python 3.13.13
+```
+
+Khi thấy như vậy, notebook đang chạy bằng Python local trên máy bạn. Muốn dùng GPU/môi trường Kaggle, bạn phải đổi kernel đó sang **Existing Jupyter Server** của Kaggle.
+
+---
+
+### 11.1. Hiểu đúng cơ chế
+
+Luồng đúng là:
+
+```text
+VS Code local
+  mở file .ipynb, chỉnh code, bấm Run cell
+        ↓
+VS Code Compatible URL
+        ↓
+Kaggle Jupyter Server
+  chạy code thật trên GPU/môi trường Kaggle
+        ↓
+output trả về VS Code
+```
+
+Nghĩa là:
+
+- File `.ipynb` có thể nằm trên máy bạn.
+- Nhưng cell được execute trên Kaggle.
+- Path trong code là path của Kaggle, ví dụ:
+
+```text
+/kaggle/input
+/kaggle/working
+```
+
+chứ không phải path trên máy local.
+
+---
+
+### 11.2. Chuẩn bị trên VS Code
+
+Cài extension:
+
+```text
+Python
+Jupyter
+```
+
+Sau đó mở file:
+
+```text
+ura_hybrid_paddle_vietocr_resnet_gate.ipynb
+```
+
+trong VS Code.
+
+Ở góc phải notebook, nếu thấy:
+
+```text
+Python 3.13.13
+```
+
+hoặc một kernel local khác, nghĩa là chưa nối Kaggle.
+
+---
+
+### 11.3. Chuẩn bị Kaggle Jupyter Server
+
+Trên Kaggle:
+
+1. Mở một Kaggle Notebook bất kỳ của competition hoặc tạo notebook mới.
+2. Vào settings của Kaggle notebook.
+3. Bật:
+
+```text
+Accelerator → GPU
+Internet → On
+```
+
+4. Add data competition URA vào notebook:
+
+```text
+Add Data
+```
+
+Notebook Kaggle cần thấy dữ liệu trong:
+
+```text
+/kaggle/input
+```
+
+5. Trên menu Kaggle, chọn:
+
+```text
+Run → Kaggle Jupyter Server
+```
+
+6. Một panel bên phải sẽ hiện ra.
+7. Bấm start server nếu Kaggle yêu cầu.
+8. Copy dòng:
+
+```text
+VS Code Compatible URL
+```
+
+URL này thường đã chứa token xác thực. Không gửi URL này cho người khác.
+
+---
+
+### 11.4. Nối URL đó vào VS Code
+
+Quay lại VS Code, trong file `.ipynb`:
+
+1. Click vào kernel picker ở góc phải trên, chỗ đang hiện:
+
+```text
+Python 3.13.13
+```
+
+2. Chọn:
+
+```text
+Select Another Kernel
+```
+
+3. Chọn:
+
+```text
+Existing Jupyter Server
+```
+
+4. Chọn:
+
+```text
+Enter the URL of the running Jupyter Server
+```
+
+5. Paste nguyên dòng:
+
+```text
+VS Code Compatible URL
+```
+
+vừa copy từ Kaggle.
+
+6. VS Code có thể hỏi đặt tên server. Đặt ví dụ:
+
+```text
+Kaggle URA GPU
+```
+
+7. Sau đó chọn kernel Python của Kaggle.
+
+Nếu thành công, góc phải notebook sẽ không còn là Python local kiểu:
+
+```text
+Python 3.13.13
+```
+
+mà sẽ chuyển sang kernel từ Kaggle/Jupyter server.
+
+---
+
+### 11.5. Test xem cell có thật sự chạy trên Kaggle không
+
+Chạy cell nhỏ này trong VS Code:
+
+```python
+import os, subprocess, sys
+
+print("Python:", sys.version)
+print("PWD:", os.getcwd())
+print("Has /kaggle/input:", os.path.exists("/kaggle/input"))
+print("Has /kaggle/working:", os.path.exists("/kaggle/working"))
+
+subprocess.run("nvidia-smi", shell=True)
+```
+
+Kết quả đúng nên có:
+
+```text
+Has /kaggle/input: True
+Has /kaggle/working: True
+```
+
+và `nvidia-smi` in ra GPU.
+
+Nếu `/kaggle/input` là `False`, bạn vẫn đang chạy local hoặc Kaggle server chưa đúng notebook/session.
+
+---
+
+### 11.6. Chạy notebook OCR sau khi nối
+
+Sau khi nối kernel thành công, chạy các cell theo thứ tự:
+
+```text
+1) Install PaddleOCR GPU + VietOCR
+2) Version check + GPU check
+3) Load data + auto-detect images
+4) Product rules
+5) Train product predictor
+5.5) Final product head
+6) PaddleOCR GPU engine
+6.5) Hybrid OCR
+6.6) Optional ResNet gate, để OFF
+7) Preview OCR
+8) Full OCR inference
+9) Validate + export submission.csv
+10) Debug helpers nếu cần
+```
+
+Vì code chạy trên Kaggle, output cuối vẫn nằm ở:
+
+```text
+/kaggle/working/submission.csv
+```
+
+---
+
+### 11.7. Lưu ý cực quan trọng về file output
+
+Khi bạn chạy từ VS Code nối Kaggle kernel:
+
+```text
+VS Code chỉ là nơi điều khiển
+Kaggle là nơi chạy và lưu file
+```
+
+Nên file:
+
+```text
+submission.csv
+checkpoint_hybrid_paddle_vietocr_resnet.csv
+```
+
+sẽ nằm trên Kaggle server:
+
+```text
+/kaggle/working/
+```
+
+không tự động xuất hiện trong folder local của VS Code.
+
+Muốn lấy file về máy:
+
+- dùng file browser/output panel của Kaggle để download, hoặc
+- chạy lệnh trong notebook để copy/hiển thị link nếu môi trường hỗ trợ.
+
+---
+
+### 11.8. Nếu VS Code vẫn hiện Python local
+
+Nếu góc phải vẫn là:
+
+```text
+Python 3.13.13
+```
+
+thì bạn chưa đổi kernel.
+
+Làm lại:
+
+```text
+Click Python 3.13.13
+→ Select Another Kernel
+→ Existing Jupyter Server
+→ Enter URL
+→ paste VS Code Compatible URL
+→ chọn kernel Kaggle
+```
+
+Nếu VS Code báo không connect được:
+
+1. Kiểm tra Kaggle Jupyter Server còn chạy không.
+2. Copy lại URL mới từ Kaggle.
+3. Restart VS Code.
+4. Đảm bảo extension Jupyter đã được cài.
+5. Không paste thiếu token trong URL.
+
+---
+
+### 11.9. Nếu package install xong nhưng import lỗi
+
+Vì notebook có cài lại Paddle/Torch/VietOCR, đôi khi cần restart kernel remote.
+
+Làm trên Kaggle:
+
+```text
+Run → Restart Session
+```
+
+hoặc trong VS Code:
+
+```text
+Kernel → Restart Kernel
+```
+
+Sau đó chạy lại từ cell version check trở xuống.
+
+Nếu reset session làm mất package, chạy lại cell install.
+
+---
+
+### 11.10. Checklist nối kernel thành công
+
+Bạn nối đúng nếu:
+
+```text
+[ ] VS Code không còn chạy kernel local Python 3.13.13
+[ ] /kaggle/input tồn tại
+[ ] /kaggle/working tồn tại
+[ ] nvidia-smi chạy được
+[ ] Paddle CUDA available = True
+[ ] OCR_DEVICE = gpu
+```
+
+Khi các dòng này ổn thì mới chạy full inference.
+
